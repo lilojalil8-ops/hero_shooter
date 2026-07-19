@@ -9,5 +9,6 @@
   "short_name": "ShortName",
   "start_url": "/",
   "theme_color": "#ffffff",
+  "icons": [{"src": "icon-512-1.png", "sizes": "512x512", "type": "image/png"}],
   "id": "hero_shooter"
 }
