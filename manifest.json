@@ -1,0 +1,13 @@
+{
+  "background_color": "#ffffff",
+  "description": "لعبة تصويب بمنظور من فوق، 5 مراحل ومتجر أسلحة",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "البطل",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "ShortName",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "id": "hero_shooter"
+}
