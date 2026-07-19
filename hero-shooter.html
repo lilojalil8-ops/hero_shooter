@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>البطل - لعبة تصويب</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; overflow: hidden;
+    background: #0a0f08;
+    height: 100%; width: 100%;
+    font-family: Arial, sans-serif;
+    touch-action: none;
+    color: #fff;
+  }
+  #gameCanvas { display: block; position: fixed; top: 0; left: 0; }
+
+  .screen {
+    position: fixed; inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at 50% 20%, #1a2a10 0%, #05080a 70%);
+    z-index: 30;
+    padding: 20px;
+    box-sizing: border-box;
+    text-align: center;
+    overflow-y: auto;
+  }
+  .screen.active { display: flex; }
+
+  h1.title {
+    font-size: 34px; margin: 0 0 4px;
+    color: #a8ff33; text-shadow: 0 0 18px #a8ff33aa;
+  }
+  .subtitle { color: #aab; margin-bottom: 24px; font-size: 14px; }
+
+  .coinBadge {
+    position: fixed; top: 10px; right: 10px; z-index: 40;
+    background: rgba(0,0,0,0.5); border: 1px solid #ffd23388;
+    border-radius: 20px; padding: 6px 14px; font-size: 15px;
+    color: #ffd233; display: none;
+  }
+  .coinBadge.show { display: block; }
+
+  .bigBtn {
+    width: 260px; max-width: 80vw;
+    padding: 14px; margin: 8px 0;
+    font-size: 17px; font-weight: bold;
+    border: none; border-radius: 12px;
+    background: linear-gradient(180deg, #8fd93a, #3d7a12);
+    color: #fff; box-shadow: 0 4px 0 #204c08;
+  }
+  .bigBtn:active { transform: translateY(2px); box-shadow: 0 2px 0 #204c08; }
+  .bigBtn.secondary { background: linear-gradient(180deg, #444, #222); box-shadow: 0 4px 0 #000; }
+  .bigBtn.secondary:active { box-shadow: 0 2px 0 #000; }
+  .bigBtn:disabled { opacity: 0.4; }
+
+  .stageGrid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; width: 90%; max-width: 380px; margin-bottom: 20px;
+  }
+  .stageBtn {
+    aspect-ratio: 1; border-radius: 12px; border: 2px solid #a8ff3355;
+    background: rgba(255,255,255,0.05); color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: bold;
+  }
+  .stageBtn.locked { opacity: 0.35; border-color: #555; }
+  .stageBtn .stars { font-size: 11px; color: #ffd233; margin-top: 4px; }
+  .stageBtn.boss { border-color: #ff3355aa; }
+
+  .shopTabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tabBtn {
+    padding: 8px 18px; border-radius: 20px; border: 1px solid #a8ff3355;
+    background: transparent; color: #ccc; font-size: 14px;
+  }
+  .tabBtn.active { background: #a8ff33; color: #002; font-weight: bold; }
+
+  .shopList {
+    width: 92%; max-width: 420px; display: flex; flex-direction: column; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .shopItem {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,0.06); border-radius: 12px; padding: 12px 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .shopItem .info { text-align: right; flex: 1; }
+  .shopItem .name { font-weight: bold; font-size: 15px; }
+  .shopItem .desc { font-size: 12px; color: #aab; margin-top: 2px; }
+  .shopItem .swatch {
+    width: 34px; height: 34px; border-radius: 8px; margin-left: 10px; flex-shrink: 0;
+  }
+  .shopBtn {
+    padding: 8px 14px; border-radius: 10px; border: none;
+    font-size: 13px; font-weight: bold; min-width: 74px;
+  }
+  .shopBtn.buy { background: #ffd233; color: #221800; }
+  .shopBtn.equip { background: #a8ff33; color: #0a1a00; }
+  .shopBtn.equipped { background: #33ff88; color: #002200; }
+  .shopBtn.max { background: #555; color: #ccc; }
+
+  #gameUI {
+    position: fixed; top: 10px; left: 10px; z-index: 20;
+    font-size: 15px; text-shadow: 0 0 4px #000;
+    display: none; line-height: 1.5;
+  }
+  #gameUI.show { display: block; }
+  #stageProgressWrap {
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+    z-index: 20; width: 200px; display: none;
+  }
+  #stageProgressWrap.show { display: block; }
+  #stageProgressBar { height: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; }
+  #stageProgressFill { height: 100%; width: 0%; background: linear-gradient(90deg,#a8ff33,#33cc66); }
+  #stageProgressLabel { font-size: 11px; text-align: center; margin-top: 2px; color: #ccc; }
+
+  #pauseBtn {
+    position: fixed; top: 10px; right: 10px; z-index: 20;
+    background: rgba(255,255,255,0.1); border: 1px solid #fff5; color: #fff;
+    border-radius: 8px; padding: 6px 12px; font-size: 16px; display: none;
+  }
+  #pauseBtn.show { display: block; }
+
+  #toast {
+    position: fixed; top: 90px; left: 50%; transform: translateX(-50%);
+    z-index: 25; font-weight: bold; text-shadow: 0 0 8px #000; font-size: 16px;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="coinBadge" id="coinBadge">🪙 0</div>
+<div id="toast"></div>
+
+<!-- قائمة رئيسية -->
+<div class="screen active" id="screenMenu">
+  <h1 class="title">البطل</h1>
+  <div class="subtitle">جندي وحيد ضد موجات الأعداء عبر 5 مراحل</div>
+  <button class="bigBtn" onclick="goToStages()">▶ ابدأ اللعب</button>
+  <button class="bigBtn secondary" onclick="openShop()">🛒 المتجر</button>
+</div>
+
+<!-- اختيار المرحلة -->
+<div class="screen" id="screenStages">
+  <h1 class="title" style="font-size:24px">اختر المرحلة</h1>
+  <div class="stageGrid" id="stageGrid"></div>
+  <button class="bigBtn secondary" onclick="showScreen('screenMenu')">رجوع</button>
+</div>
+
+<!-- المتجر -->
+<div class="screen" id="screenShop">
+  <h1 class="title" style="font-size:24px">المتجر</h1>
+  <div class="shopTabs">
+    <button class="tabBtn active" id="tabWeapons" onclick="switchShopTab('weapons')">الأسلحة</button>
+    <button class="tabBtn" id="tabUpgrades" onclick="switchShopTab('upgrades')">الترقيات</button>
+  </div>
+  <div class="shopList" id="shopList"></div>
+  <button class="bigBtn secondary" onclick="showScreen('screenMenu')">رجوع</button>
+</div>
+
+<!-- نهاية المرحلة -->
+<div class="screen" id="screenStageComplete">
+  <h1 class="title" id="stageCompleteTitle">أكملت المرحلة!</h1>
+  <div class="subtitle" id="stageCompleteDesc"></div>
+  <button class="bigBtn" id="btnNextStage" onclick="continueAfterStage()">التالي</button>
+  <button class="bigBtn secondary" onclick="openShop()">🛒 المتجر</button>
+  <button class="bigBtn secondary" onclick="showScreen('screenMenu')">القائمة الرئيسية</button>
+</div>
+
+<!-- خسارة -->
+<div class="screen" id="screenGameOver">
+  <h1 class="title" style="color:#ff5566; text-shadow:0 0 18px #ff5566aa;">انتهت اللعبة</h1>
+  <div class="subtitle" id="gameOverDesc"></div>
+  <button class="bigBtn" onclick="retryStage()">إعادة المحاولة</button>
+  <button class="bigBtn secondary" onclick="goToStages()">اختيار المرحلة</button>
+</div>
+
+<!-- إيقاف مؤقت -->
+<div class="screen" id="screenPause">
+  <h1 class="title" style="font-size:26px">إيقاف مؤقت</h1>
+  <button class="bigBtn" onclick="resumeGame()">استمرار</button>
+  <button class="bigBtn secondary" onclick="quitToMenu()">القائمة الرئيسية</button>
+</div>
+
+<div id="gameUI">
+  ❤️ <span id="uiLives">3</span> &nbsp; 🪙 <span id="uiCoins">0</span>
+</div>
+<div id="stageProgressWrap">
+  <div id="stageProgressBar"><div id="stageProgressFill"></div></div>
+  <div id="stageProgressLabel">0 / 0</div>
+</div>
+<button id="pauseBtn" onclick="pauseGame()">⏸</button>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+/* ========================= إعداد عام ========================= */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+/* ========================= الصوت ========================= */
+let audioCtx = null;
+function getAudioCtx() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function playTone(freq, duration, type, volume) {
+  try {
+    const ac = getAudioCtx();
+    const osc = ac.createOscillator(); const gain = ac.createGain();
+    osc.type = type || 'sine'; osc.frequency.value = freq;
+    gain.gain.value = volume || 0.15;
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.start(); osc.stop(ac.currentTime + duration);
+  } catch (e) {}
+}
+function playShoot() { playTone(760, 0.05, 'square', 0.045); }
+function playHit() { playTone(220, 0.1, 'sawtooth', 0.1); }
+function playCoin() { playTone(1200, 0.08, 'sine', 0.08); }
+function playExplosion() {
+  try {
+    const ac = getAudioCtx();
+    const bufferSize = ac.sampleRate * 0.25;
+    const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    const noise = ac.createBufferSource(); noise.buffer = buffer;
+    const gain = ac.createGain(); gain.gain.value = 0.22;
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.25);
+    noise.connect(gain); gain.connect(ac.destination); noise.start();
+  } catch (e) {}
+}
+function playDamage() { playTone(120, 0.25, 'sawtooth', 0.18); }
+
+/* ========================= بيانات اللعبة ========================= */
+const WEAPONS = {
+  blaster: { name: 'البندقية الأساسية', desc: 'سلاح متوازن للمبتدئين', cost: 0, dmg: 1, fireInterval: 16, bullets: 1, spread: 0, color: '#fff8cc' },
+  twin:    { name: 'مسدسان مزدوجان',     desc: 'رصاصتان بكل طلقة',         cost: 120, dmg: 1, fireInterval: 16, bullets: 2, spread: 0.1, color: '#66ccff' },
+  rapid:   { name: 'رشاش سريع',          desc: 'معدل إطلاق عالٍ جدًا',      cost: 180, dmg: 1, fireInterval: 8,  bullets: 1, spread: 0,   color: '#ffee66' },
+  spread:  { name: 'بندقية خرطوش',       desc: 'ثلاث رصاصات متفرقة',        cost: 220, dmg: 1, fireInterval: 20, bullets: 3, spread: 0.22, color: '#66ff99' },
+  laser:   { name: 'مدفع ثقيل',          desc: 'ضرر مضاعف لكل طلقة',        cost: 320, dmg: 3, fireInterval: 24, bullets: 1, spread: 0,   color: '#ff66ff' }
+};
+
+const UPGRADES = {
+  health: { name: 'صحة إضافية', desc: '+1 حياة قصوى', baseCost: 90, maxLevel: 4 },
+  speed:  { name: 'سرعة الحركة', desc: '+15% سرعة تحرك', baseCost: 70, maxLevel: 4 },
+  damage: { name: 'قوة الضرر', desc: '+1 ضرر لكل طلقة', baseCost: 110, maxLevel: 4 }
+};
+
+const STAGES = [
+  { id: 1, killGoal: 14, spawnRate: 70, speedMult: 1.00, healthMult: 1.0, boss: false, bonus: 80 },
+  { id: 2, killGoal: 18, spawnRate: 60, speedMult: 1.12, healthMult: 1.1, boss: false, bonus: 110 },
+  { id: 3, killGoal: 22, spawnRate: 50, speedMult: 1.24, healthMult: 1.25, boss: false, bonus: 150 },
+  { id: 4, killGoal: 26, spawnRate: 42, speedMult: 1.36, healthMult: 1.4, boss: false, bonus: 200 },
+  { id: 5, killGoal: 26, spawnRate: 36, speedMult: 1.48, healthMult: 1.6, boss: true,  bonus: 320 }
+];
+
+const progress = {
+  coins: 0,
+  ownedWeapons: new Set(['blaster']),
+  equippedWeapon: 'blaster',
+  upgradeLevels: { health: 0, speed: 0, damage: 0 },
+  unlockedStage: 1
+};
+
+function saveCoins(v) {
+  progress.coins = Math.max(0, progress.coins + v);
+  document.getElementById('coinBadge').textContent = '🪙 ' + progress.coins;
+}
+function showToast(text, color) {
+  const el = document.getElementById('toast');
+  el.textContent = text; el.style.color = color || '#a8ff33'; el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 1400);
+}
+
+/* ========================= إدارة الشاشات ========================= */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('coinBadge').classList.add('show');
+  document.getElementById('gameUI').classList.remove('show');
+  document.getElementById('stageProgressWrap').classList.remove('show');
+  document.getElementById('pauseBtn').classList.remove('show');
+}
+function goToStages() { renderStageGrid(); showScreen('screenStages'); }
+function renderStageGrid() {
+  const grid = document.getElementById('stageGrid');
+  grid.innerHTML = '';
+  STAGES.forEach(st => {
+    const locked = st.id > progress.unlockedStage;
+    const btn = document.createElement('button');
+    btn.className = 'stageBtn' + (locked ? ' locked' : '') + (st.boss ? ' boss' : '');
+    btn.innerHTML = (st.boss ? '👑' : '🎯') + '<div>' + st.id + '</div>' +
+      '<div class="stars">' + (locked ? 'مقفلة' : (st.boss ? 'زعيم' : 'ابدأ')) + '</div>';
+    btn.disabled = locked;
+    btn.onclick = () => startStage(st.id);
+    grid.appendChild(btn);
+  });
+}
+
+/* ========================= المتجر ========================= */
+let shopTab = 'weapons';
+function openShop() { switchShopTab('weapons'); showScreen('screenShop'); }
+function switchShopTab(tab) {
+  shopTab = tab;
+  document.getElementById('tabWeapons').classList.toggle('active', tab === 'weapons');
+  document.getElementById('tabUpgrades').classList.toggle('active', tab === 'upgrades');
+  renderShopList();
+}
+function renderShopList() {
+  const list = document.getElementById('shopList');
+  list.innerHTML = '';
+  if (shopTab === 'weapons') {
+    Object.keys(WEAPONS).forEach(id => {
+      const w = WEAPONS[id];
+      const owned = progress.ownedWeapons.has(id);
+      const equipped = progress.equippedWeapon === id;
+      const item = document.createElement('div');
+      item.className = 'shopItem';
+      const swatch = `<div class="swatch" style="background:${w.color}"></div>`;
+      let btnHtml;
+      if (!owned) btnHtml = `<button class="shopBtn buy" onclick="buyWeapon('${id}')">🪙${w.cost}</button>`;
+      else if (equipped) btnHtml = `<button class="shopBtn equipped" disabled>مجهّز</button>`;
+      else btnHtml = `<button class="shopBtn equip" onclick="equipWeapon('${id}')">تجهيز</button>`;
+      item.innerHTML = `${swatch}<div class="info"><div class="name">${w.name}</div><div class="desc">${w.desc}</div></div>${btnHtml}`;
+      list.appendChild(item);
+    });
+  } else {
+    Object.keys(UPGRADES).forEach(id => {
+      const u = UPGRADES[id];
+      const level = progress.upgradeLevels[id];
+      const maxed = level >= u.maxLevel;
+      const cost = u.baseCost * (level + 1);
+      const item = document.createElement('div');
+      item.className = 'shopItem';
+      const swatch = `<div class="swatch" style="background:#a8ff3322;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#a8ff33">${level}/${u.maxLevel}</div>`;
+      let btnHtml = maxed ? `<button class="shopBtn max" disabled>مكتمل</button>` : `<button class="shopBtn buy" onclick="buyUpgrade('${id}')">🪙${cost}</button>`;
+      item.innerHTML = `${swatch}<div class="info"><div class="name">${u.name}</div><div class="desc">${u.desc}</div></div>${btnHtml}`;
+      list.appendChild(item);
+    });
+  }
+}
+function buyWeapon(id) {
+  const w = WEAPONS[id];
+  if (progress.coins < w.cost) { showToast('لا تملك نقود كافية', '#ff6666'); return; }
+  saveCoins(-w.cost); progress.ownedWeapons.add(id); progress.equippedWeapon = id;
+  showToast('تم شراء ' + w.name + '!', '#a8ff33'); renderShopList();
+}
+function equipWeapon(id) {
+  progress.equippedWeapon = id;
+  showToast('تم تجهيز ' + WEAPONS[id].name, '#66ccff'); renderShopList();
+}
+function buyUpgrade(id) {
+  const u = UPGRADES[id];
+  const level = progress.upgradeLevels[id];
+  const cost = u.baseCost * (level + 1);
+  if (progress.coins < cost) { showToast('لا تملك نقود كافية', '#ff6666'); return; }
+  saveCoins(-cost); progress.upgradeLevels[id]++;
+  showToast(u.name + ' تحسّنت!', '#a8ff33'); renderShopList();
+}
+
+/* ========================= حالة الجولة ========================= */
+let game = null;
+let animId = null;
+
+function computeMaxHealth() { return 3 + progress.upgradeLevels.health; }
+function computeSpeedMult() { return 1 + progress.upgradeLevels.speed * 0.15; }
+function computeDamageBonus() { return progress.upgradeLevels.damage; }
+
+function startStage(stageId) {
+  const stCfg = STAGES.find(s => s.id === stageId);
+  game = createGameState(stCfg);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('coinBadge').classList.add('show');
+  document.getElementById('gameUI').classList.add('show');
+  document.getElementById('stageProgressWrap').classList.add('show');
+  document.getElementById('pauseBtn').classList.add('show');
+  updateHud();
+  if (animId) cancelAnimationFrame(animId);
+  loop();
+}
+function retryStage() { startStage(game.stageCfg.id); }
+
+function createGameState(stCfg) {
+  // زخارف أرضية ثابتة (صخور/صناديق) تُولّد مرة لكل مرحلة
+  const props = [];
+  for (let i = 0; i < 14; i++) {
+    props.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      size: Math.random() * 14 + 10,
+      type: Math.random() < 0.5 ? 'rock' : 'crate'
+    });
+  }
+  return {
+    stageCfg: stCfg,
+    props,
+    running: true,
+    paused: false,
+    lives: computeMaxHealth(),
+    maxLives: computeMaxHealth(),
+    kills: 0,
+    player: {
+      x: canvas.width / 2, y: canvas.height / 2, radius: 16,
+      facing: -Math.PI / 2, invuln: 0
+    },
+    joystick: { active: false, baseX: 0, baseY: 0, curX: 0, curY: 0, dx: 0, dy: 0, mag: 0, touchId: null },
+    bullets: [],
+    enemies: [],
+    particles: [],
+    shootTimer: 0,
+    enemyTimer: 0,
+    screenShake: 0,
+    bossSpawned: false
+  };
+}
+
+/* ========================= العصا الافتراضية (Joystick) ========================= */
+const JOY_RADIUS = 55;
+
+function joyStart(x, y, id) {
+  if (!game || !game.running || game.paused) return;
+  if (x > canvas.width * 0.62) return; // نخصص النصف الأيسر تقريبًا للتحكم بالحركة
+  game.joystick.active = true;
+  game.joystick.baseX = x; game.joystick.baseY = y;
+  game.joystick.curX = x; game.joystick.curY = y;
+  game.joystick.touchId = id;
+}
+function joyMove(x, y, id) {
+  if (!game || !game.joystick.active) return;
+  if (game.joystick.touchId !== null && id !== undefined && id !== game.joystick.touchId) return;
+  let dx = x - game.joystick.baseX;
+  let dy = y - game.joystick.baseY;
+  const dist = Math.hypot(dx, dy);
+  const clamped = Math.min(dist, JOY_RADIUS);
+  const angle = Math.atan2(dy, dx);
+  game.joystick.curX = game.joystick.baseX + Math.cos(angle) * clamped;
+  game.joystick.curY = game.joystick.baseY + Math.sin(angle) * clamped;
+  game.joystick.dx = clamped > 6 ? Math.cos(angle) : 0;
+  game.joystick.dy = clamped > 6 ? Math.sin(angle) : 0;
+  game.joystick.mag = clamped / JOY_RADIUS;
+}
+function joyEnd(id) {
+  if (!game) return;
+  if (game.joystick.touchId !== null && id !== undefined && id !== game.joystick.touchId) return;
+  game.joystick.active = false;
+  game.joystick.dx = 0; game.joystick.dy = 0; game.joystick.mag = 0; game.joystick.touchId = null;
+}
+
+canvas.addEventListener('touchstart', (e) => {
+  for (const t of e.changedTouches) joyStart(t.clientX, t.clientY, t.identifier);
+});
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  for (const t of e.changedTouches) joyMove(t.clientX, t.clientY, t.identifier);
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  for (const t of e.changedTouches) joyEnd(t.identifier);
+});
+canvas.addEventListener('touchcancel', (e) => {
+  for (const t of e.changedTouches) joyEnd(t.identifier);
+});
+// دعم الفأرة لتجربة سطح المكتب
+let mouseDown = false;
+canvas.addEventListener('mousedown', (e) => { mouseDown = true; joyStart(e.clientX, e.clientY, 'mouse'); });
+canvas.addEventListener('mousemove', (e) => { if (mouseDown) joyMove(e.clientX, e.clientY, 'mouse'); });
+window.addEventListener('mouseup', () => { mouseDown = false; joyEnd('mouse'); });
+
+/* ========================= أنواع الأعداء ========================= */
+const enemyBase = {
+  scout: { size: 22, speed: 2.6, health: 1, color: '#ff9933', darkColor: '#aa5511', points: 8, coins: 3 },
+  grunt: { size: 30, speed: 1.6, health: 1, color: '#ff3355', darkColor: '#991122', points: 12, coins: 5 },
+  tank:  { size: 42, speed: 0.9, health: 3, color: '#aa33ff', darkColor: '#661a99', points: 25, coins: 12 }
+};
+function pickEnemyType() {
+  const r = Math.random();
+  if (r < 0.5) return 'scout';
+  if (r < 0.85) return 'grunt';
+  return 'tank';
+}
+// يولّد نقطة خارج الشاشة على أحد الأطراف الأربعة
+function edgeSpawnPoint(size) {
+  const side = Math.floor(Math.random() * 4);
+  if (side === 0) return { x: Math.random() * canvas.width, y: -size };
+  if (side === 1) return { x: canvas.width + size, y: Math.random() * canvas.height };
+  if (side === 2) return { x: Math.random() * canvas.width, y: canvas.height + size };
+  return { x: -size, y: Math.random() * canvas.height };
+}
+function spawnEnemy() {
+  const st = game.stageCfg;
+  const type = pickEnemyType();
+  const b = enemyBase[type];
+  const size = b.size;
+  const pos = edgeSpawnPoint(size);
+  game.enemies.push({
+    type, boss: false,
+    x: pos.x, y: pos.y, width: size, height: size,
+    speed: b.speed * st.speedMult + Math.random() * 0.4,
+    health: Math.ceil(b.health * st.healthMult),
+    maxHealth: Math.ceil(b.health * st.healthMult),
+    color: b.color, darkColor: b.darkColor,
+    points: b.points, coins: b.coins, facing: 0
+  });
+}
+function spawnBoss() {
+  const st = game.stageCfg;
+  const size = 78;
+  game.enemies.push({
+    type: 'boss', boss: true,
+    x: canvas.width / 2, y: -size, width: size, height: size,
+    speed: 1.1 * st.speedMult, health: 40, maxHealth: 40,
+    color: '#ff3355', darkColor: '#661111', points: 200, coins: 150, facing: 0
+  });
+  showToast('⚠ زعيم قادم!', '#ff5566');
+}
+
+/* ========================= جسيمات ========================= */
+function createParticles(x, y, color, count) {
+  for (let i = 0; i < (count || 10); i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 5 + 1;
+    game.particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 32, maxLife: 32, size: Math.random() * 3 + 2, color });
+  }
+}
+
+/* ========================= واجهة الحالة ========================= */
+function updateHud() {
+  document.getElementById('uiLives').textContent = game.lives;
+  document.getElementById('uiCoins').textContent = progress.coins;
+  const st = game.stageCfg;
+  const bossEnemy = game.enemies.find(e => e.boss);
+  const goalText = st.boss && game.bossSpawned ? 'الزعيم!' : (game.kills + ' / ' + st.killGoal);
+  document.getElementById('stageProgressLabel').textContent = 'المرحلة ' + st.id + ' — ' + goalText;
+  const pct = (st.boss && game.bossSpawned)
+    ? (bossEnemy ? (1 - bossEnemy.health / bossEnemy.maxHealth) : 1)
+    : Math.min(1, game.kills / st.killGoal);
+  document.getElementById('stageProgressFill').style.width = Math.min(100, pct * 100) + '%';
+}
+
+/* ========================= التحديث ========================= */
+function update() {
+  if (!game || !game.running || game.paused) return;
+  const st = game.stageCfg;
+  const p = game.player;
+  const j = game.joystick;
+
+  // حركة اللاعب بأربع اتجاهات (تناظرية حسب بعد العصا)
+  const baseSpeed = 3.6 * computeSpeedMult();
+  if (j.mag > 0) {
+    p.x += j.dx * j.mag * baseSpeed;
+    p.y += j.dy * j.mag * baseSpeed;
+    p.facing = Math.atan2(j.dy, j.dx);
+  }
+  p.x = Math.max(p.radius, Math.min(canvas.width - p.radius, p.x));
+  p.y = Math.max(p.radius, Math.min(canvas.height - p.radius, p.y));
+  if (p.invuln > 0) p.invuln--;
+
+  if (game.screenShake > 0) game.screenShake *= 0.85;
+  if (game.screenShake < 0.1) game.screenShake = 0;
+
+  // إطلاق تلقائي نحو اتجاه المواجهة
+  const weapon = WEAPONS[progress.equippedWeapon];
+  game.shootTimer++;
+  if (game.shootTimer >= weapon.fireInterval) {
+    game.shootTimer = 0;
+    const n = weapon.bullets;
+    for (let i = 0; i < n; i++) {
+      const offsetAngle = n === 1 ? 0 : (i - (n - 1) / 2) * weapon.spread;
+      const ang = p.facing + offsetAngle;
+      game.bullets.push({
+        x: p.x + Math.cos(ang) * (p.radius + 6),
+        y: p.y + Math.sin(ang) * (p.radius + 6),
+        vx: Math.cos(ang) * 11, vy: Math.sin(ang) * 11,
+        radius: weapon.big ? 5 : 3.5,
+        dmg: weapon.dmg + computeDamageBonus(),
+        color: weapon.color, trail: []
+      });
+    }
+    playShoot();
+  }
+
+  game.bullets.forEach(b => {
+    b.trail.push({ x: b.x, y: b.y });
+    if (b.trail.length > 5) b.trail.shift();
+    b.x += b.vx; b.y += b.vy;
+  });
+  game.bullets = game.bullets.filter(b => b.x > -30 && b.x < canvas.width + 30 && b.y > -30 && b.y < canvas.height + 30);
+
+  // توليد الأعداء
+  if (!(st.boss && game.kills >= st.killGoal)) {
+    game.enemyTimer++;
+    if (game.enemyTimer >= st.spawnRate) { game.enemyTimer = 0; spawnEnemy(); }
+  } else if (st.boss && !game.bossSpawned) {
+    game.bossSpawned = true;
+    spawnBoss();
+  }
+
+  // حركة الأعداء: مطاردة اللاعب
+  game.enemies.forEach(en => {
+    const dx = p.x - en.x, dy = p.y - en.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    en.facing = Math.atan2(dy, dx);
+    if (en.boss) {
+      if (en.y < 150) { en.y += en.speed; }
+      else {
+        en.x += (dx / dist) * en.speed * 0.6;
+        en.y += (dy / dist) * en.speed * 0.3;
+      }
+    } else {
+      en.x += (dx / dist) * en.speed;
+      en.y += (dy / dist) * en.speed;
+    }
+  });
+
+  // تصادم الرصاص بالأعداء
+  for (let i = game.enemies.length - 1; i >= 0; i--) {
+    const en = game.enemies[i];
+    let hitDmg = 0;
+    for (let jb = game.bullets.length - 1; jb >= 0; jb--) {
+      const b = game.bullets[jb];
+      const d = Math.hypot(b.x - en.x, b.y - en.y);
+      if (d < en.width / 2 + b.radius) { hitDmg += b.dmg; game.bullets.splice(jb, 1); }
+    }
+    if (hitDmg > 0) {
+      en.health -= hitDmg;
+      createParticles(en.x, en.y, en.color, 5);
+      playHit();
+      if (en.health <= 0) {
+        createParticles(en.x, en.y, en.color, en.boss ? 40 : 18);
+        game.enemies.splice(i, 1);
+        saveCoins(en.coins);
+        playCoin();
+        game.screenShake = Math.min(game.screenShake + (en.boss ? 10 : 3), 16);
+        playExplosion();
+        if (en.boss) { finishStage(true); return; }
+        game.kills++;
+        if (game.kills >= st.killGoal && !st.boss) { finishStage(true); return; }
+      }
+      continue;
+    }
+    // تصادم مباشر مع اللاعب
+    const dPlayer = Math.hypot(en.x - p.x, en.y - p.y);
+    if (p.invuln <= 0 && dPlayer < (en.width / 2 + p.radius) * 0.85) {
+      createParticles(p.x, p.y, '#a8ff33', 18);
+      if (!en.boss) game.enemies.splice(i, 1);
+      game.lives--;
+      p.invuln = 90;
+      game.screenShake = 15;
+      playDamage();
+      if (game.lives <= 0) { loseStage(); return; }
+    }
+  }
+
+  game.particles.forEach(pt => { pt.x += pt.vx; pt.y += pt.vy; pt.vx *= 0.96; pt.vy *= 0.96; pt.life--; });
+  game.particles = game.particles.filter(pt => pt.life > 0);
+
+  updateHud();
+}
+
+function finishStage(success) {
+  game.running = false;
+  const st = game.stageCfg;
+  saveCoins(st.bonus);
+  if (st.id === progress.unlockedStage && st.id < 5) progress.unlockedStage = st.id + 1;
+  document.getElementById('stageCompleteTitle').textContent = st.boss ? '🏆 هزمت الزعيم!' : '✔ أكملت المرحلة ' + st.id;
+  document.getElementById('stageCompleteDesc').textContent = 'مكافأة المرحلة: 🪙' + st.bonus + (st.id < 5 ? ' — المرحلة التالية مفتوحة الآن' : ' — أكملت جميع المراحل!');
+  document.getElementById('btnNextStage').style.display = st.id < 5 ? 'block' : 'none';
+  document.getElementById('btnNextStage').textContent = 'المرحلة التالية ▶';
+  showScreen('screenStageComplete');
+}
+function continueAfterStage() { const next = game.stageCfg.id + 1; if (next <= 5) startStage(next); }
+function loseStage() {
+  game.running = false;
+  document.getElementById('gameOverDesc').textContent = 'وصلت إلى ' + game.kills + ' قتلى في المرحلة ' + game.stageCfg.id + '. حاول مرة أخرى!';
+  showScreen('screenGameOver');
+}
+
+/* ========================= الرسم ========================= */
+function drawGround() {
+  const bg = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 40, canvas.width/2, canvas.height/2, canvas.width*0.75);
+  bg.addColorStop(0, '#2a3a18');
+  bg.addColorStop(1, '#0e1408');
+  ctx.fillStyle = bg;
+  ctx.fillRect(-20, -20, canvas.width + 40, canvas.height + 40);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  const step = 60;
+  for (let x = 0; x < canvas.width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+  for (let y = 0; y < canvas.height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+
+  game.props.forEach(pr => {
+    ctx.save();
+    ctx.translate(pr.x, pr.y);
+    if (pr.type === 'rock') {
+      const grad = ctx.createRadialGradient(-pr.size*0.2, -pr.size*0.2, 1, 0, 0, pr.size);
+      grad.addColorStop(0, '#6b6b5a'); grad.addColorStop(1, '#33332a');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.ellipse(0, 0, pr.size, pr.size*0.8, 0, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#7a5a30';
+      ctx.fillRect(-pr.size/2, -pr.size/2, pr.size, pr.size);
+      ctx.strokeStyle = '#4a3818'; ctx.lineWidth = 2;
+      ctx.strokeRect(-pr.size/2, -pr.size/2, pr.size, pr.size);
+    }
+    ctx.restore();
+  });
+}
+
+function lightenColor(hex, amt) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  let r = (num >> 16) + amt, g = ((num >> 8) & 0xff) + amt, b = (num & 0xff) + amt;
+  r = Math.min(255, Math.max(0, r)); g = Math.min(255, Math.max(0, g)); b = Math.min(255, Math.max(0, b));
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawSoldier(x, y, facing, bodyColor, darkColor, radius, invulnFlicker) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (invulnFlicker) ctx.globalAlpha = 0.4;
+
+  // ظل
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, radius*0.7, radius*0.95, radius*0.4, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.save();
+  ctx.rotate(facing);
+
+  // الساقان
+  ctx.fillStyle = darkColor;
+  ctx.beginPath(); ctx.ellipse(-radius*0.35, -radius*0.32, radius*0.24, radius*0.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-radius*0.35, radius*0.32, radius*0.24, radius*0.5, 0, 0, Math.PI*2); ctx.fill();
+
+  // الجسم (بذلة عسكرية)
+  const torsoGrad = ctx.createLinearGradient(-radius*0.5, 0, radius*0.6, 0);
+  torsoGrad.addColorStop(0, darkColor);
+  torsoGrad.addColorStop(0.5, bodyColor);
+  torsoGrad.addColorStop(1, darkColor);
+  ctx.fillStyle = torsoGrad;
+  ctx.beginPath();
+  ctx.roundRect(-radius*0.5, -radius*0.55, radius*1.05, radius*1.1, radius*0.32);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+
+  // حزام العتاد
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-radius*0.5, 0); ctx.lineTo(radius*0.55, 0); ctx.stroke();
+
+  // الذراعان
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath(); ctx.ellipse(radius*0.1, -radius*0.32, radius*0.2, radius*0.15, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(radius*0.1, radius*0.32, radius*0.2, radius*0.15, 0, 0, Math.PI*2); ctx.fill();
+
+  // البندقية
+  ctx.fillStyle = '#2b2b2b';
+  ctx.fillRect(radius*0.3, -4, radius*1.5, 8);
+  ctx.fillStyle = '#141414';
+  ctx.fillRect(radius*1.65, -3.5, radius*0.35, 7);
+  ctx.fillStyle = '#444';
+  ctx.fillRect(radius*0.45, -8, radius*0.16, 6); // مخزن الذخيرة
+
+  // الرأس/الخوذة
+  const headGrad = ctx.createRadialGradient(radius*-0.1, radius*-0.12, 1, radius*0.08, 0, radius*0.44);
+  headGrad.addColorStop(0, lightenColor(bodyColor, 60));
+  headGrad.addColorStop(1, darkColor);
+  ctx.fillStyle = headGrad;
+  ctx.beginPath(); ctx.arc(radius*0.08, 0, radius*0.44, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+  // حاجب الخوذة
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(radius*0.08, 0, radius*0.3, 0.4, Math.PI*1.6); ctx.stroke();
+  // بريق صغير على الخوذة
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.beginPath(); ctx.ellipse(radius*0.0, -radius*0.12, radius*0.08, radius*0.05, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const p = game.player;
+  const flicker = p.invuln > 0 && Math.floor(p.invuln/5)%2===0;
+  drawSoldier(p.x, p.y, p.facing, '#8fe0ff', '#1a6a99', p.radius, flicker);
+}
+
+function drawEnemy(en) {
+  if (en.boss) {
+    ctx.save();
+    ctx.translate(en.x, en.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(0, en.width*0.35, en.width*0.55, en.width*0.22, 0, 0, Math.PI*2); ctx.fill();
+    ctx.rotate(en.facing);
+    ctx.fillStyle = '#552222';
+    ctx.fillRect(en.width*0.2, -6, en.width*0.7, 12);
+    ctx.rotate(-en.facing);
+    const grad = ctx.createRadialGradient(-en.width*0.2, -en.width*0.2, 2, 0, 0, en.width/2);
+    grad.addColorStop(0, en.color); grad.addColorStop(1, en.darkColor);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0, 0, en.width/2, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+  } else {
+    drawSoldier(en.x, en.y, en.facing, en.color, en.darkColor, en.width/2, false);
+  }
+
+  if (en.type === 'tank' || en.boss) {
+    const barW = en.width;
+    const pct = en.health / en.maxHealth;
+    ctx.fillStyle = '#222'; ctx.fillRect(en.x - barW/2, en.y - en.width/2 - 12, barW, 6);
+    ctx.fillStyle = en.boss ? '#ff5566' : '#33ff66';
+    ctx.fillRect(en.x - barW/2, en.y - en.width/2 - 12, barW * pct, 6);
+  }
+}
+
+function drawJoystick() {
+  const j = game.joystick;
+  if (!j.active) return;
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = '#a8ff33'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(j.baseX, j.baseY, JOY_RADIUS, 0, Math.PI*2); ctx.stroke();
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = '#a8ff33';
+  ctx.beginPath(); ctx.arc(j.curX, j.curY, 22, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function draw() {
+  ctx.save();
+  if (game.screenShake > 0) ctx.translate((Math.random()-0.5)*game.screenShake, (Math.random()-0.5)*game.screenShake);
+
+  drawGround();
+  drawPlayer();
+
+  game.bullets.forEach(b => {
+    b.trail.forEach((t, idx) => {
+      ctx.globalAlpha = (idx / b.trail.length) * 0.4;
+      ctx.fillStyle = b.color;
+      ctx.beginPath(); ctx.arc(t.x, t.y, b.radius, 0, Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2); ctx.fill();
+  });
+
+  game.enemies.forEach(drawEnemy);
+
+  game.particles.forEach(pt => {
+    ctx.globalAlpha = pt.life / pt.maxLife;
+    ctx.fillStyle = pt.color;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  ctx.restore();
+  drawJoystick();
+}
+
+function loop() {
+  update();
+  if (game) draw();
+  if (game && (game.running || game.paused)) animId = requestAnimationFrame(loop);
+}
+
+/* ========================= إيقاف مؤقت ========================= */
+function pauseGame() {
+  if (!game || !game.running) return;
+  game.paused = true;
+  showScreen('screenPause');
+}
+function resumeGame() {
+  if (!game) return;
+  game.paused = false;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('coinBadge').classList.add('show');
+  document.getElementById('gameUI').classList.add('show');
+  document.getElementById('stageProgressWrap').classList.add('show');
+  document.getElementById('pauseBtn').classList.add('show');
+  loop();
+}
+function quitToMenu() { game = null; if (animId) cancelAnimationFrame(animId); showScreen('screenMenu'); }
+
+/* ========================= بداية ========================= */
+saveCoins(0);
+showScreen('screenMenu');
+</script>
+</body>
+</html>
